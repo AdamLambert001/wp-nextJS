@@ -1,0 +1,460 @@
+generator client {
+  provider = "prisma-client"
+  output   = "../src/generated/prisma"
+}
+
+datasource db {
+  provider = "postgresql"
+}
+
+model GameServer {
+  id              String   @id
+  name            String
+  port            Int
+  profileId       String   @map("profile_id")
+  mods            String   @default("")
+  serverMods      String   @default("") @map("server_mods")
+  extraArgs       String   @default("") @map("extra_args")
+  configPath      String   @default("") @map("config_path")
+  basicConfigPath String   @default("") @map("basic_config_path")
+  profilesPath    String   @default("") @map("profiles_path")
+  serverPassword  String   @default("") @map("server_password")
+  description     String   @default("")
+  sortOrder       Int      @default(0) @map("sort_order")
+  createdAt       DateTime @default(now()) @map("created_at")
+  updatedAt       DateTime @updatedAt @map("updated_at")
+  category        String   @default("Other")
+
+  @@map("servers")
+}
+
+model DiscordRole {
+  discordId          String   @id @map("discord_id")
+  canUpload          Boolean  @default(false) @map("can_upload")
+  canControlServers  Boolean  @default(false) @map("can_control_servers")
+  updatedAt          DateTime @updatedAt @map("updated_at")
+  discordName        String?  @map("discord_name")
+  canManageServer    Boolean  @default(false) @map("can_manage_server")
+  canBeDeleted       Boolean  @default(true) @map("can_be_deleted")
+  canControlMain     Boolean  @default(false) @map("can_control_main")
+  canControlFunOps   Boolean  @default(false) @map("can_control_fun_ops")
+  canControlOther    Boolean  @default(false) @map("can_control_other")
+  canManageMods      Boolean  @default(false) @map("can_manage_mods")
+  canDeleteMissions  Boolean  @default(false) @map("can_delete_missions")
+  canViewConsole     Boolean  @default(false) @map("can_view_console")
+  canControlGames    Boolean  @default(false) @map("can_control_games")
+  canDeleteServers   Boolean  @default(false) @map("can_delete_servers")
+  allowedCategoryIds String[] @default([]) @map("allowed_category_ids")
+  srAdmin            Boolean  @default(false) @map("sr_admin")
+  srRecruiter        Boolean  @default(false) @map("sr_recruiter")
+  srSquadLeader      Boolean  @default(false) @map("sr_squad_leader")
+  srTrainer          Boolean  @default(false) @map("sr_trainer")
+  srZeus             Boolean  @default(false) @map("sr_zeus")
+
+  @@map("discord_roles")
+}
+
+/// Service records for personnel. The primary key `id` is user-entered (e.g. a Discord name label or other unique identifier).
+model ServiceRecord {
+  id              String               @id
+  displayName     String?              @map("display_name")
+  rank            String?
+  assignment      String?
+  primaryMOS      String?              @map("primary_mos")
+  operationCount  Int                  @default(0) @map("operation_count")
+  createdAt       DateTime             @default(now()) @map("created_at")
+  updatedAt       DateTime             @updatedAt @map("updated_at")
+  avatarUrl       String?              @map("avatar_url")
+  awards          Json?
+  bio             String?
+  isProfilePublic Boolean              @default(true) @map("is_profile_public")
+  specialties     String?
+  timezone        String?
+  unit            String?
+  trainings       Json?
+  firstName       String?              @map("first_name")
+  lastName        String?              @map("last_name")
+  coolDown        Int                  @default(0) @map("cool_down")
+  datePromoted    DateTime?            @map("date_promoted")
+  dateJoined      DateTime?            @map("date_joined")
+  position        String?
+  campaignRib     Json?                @map("campaign_rib")
+  profileLogs     ProfileActivityLog[]
+
+  @@map("service_records")
+}
+
+model ProfileActivityLog {
+  id              String             @id @default(cuid())
+  serviceRecordId String             @map("service_record_id")
+  category        ProfileLogCategory
+  occurredAt      DateTime           @map("occurred_at")
+  note            String
+  createdAt       DateTime           @default(now()) @map("created_at")
+  serviceRecord   ServiceRecord      @relation(fields: [serviceRecordId], references: [id], onDelete: Cascade)
+
+  @@index([serviceRecordId])
+  @@index([serviceRecordId, category])
+  @@map("profile_activity_logs")
+}
+
+model ExpressSession {
+  sid    String   @id
+  sess   Json
+  expire DateTime @db.Timestamptz(6)
+
+  @@index([expire])
+  @@map("session")
+}
+
+model TrainingCategory {
+  id        String         @id @default(cuid())
+  localId   String         @unique @map("local_id")
+  title     String
+  sortOrder Int            @default(0) @map("sort_order")
+  items     TrainingItem[]
+
+  @@map("training_categories")
+}
+
+model TrainingItem {
+  id         String           @id @default(cuid())
+  categoryId String           @map("category_id")
+  slug       String
+  label      String
+  sortOrder  Int              @default(0) @map("sort_order")
+  category   TrainingCategory @relation(fields: [categoryId], references: [id], onDelete: Cascade)
+
+  @@unique([categoryId, slug])
+  @@map("training_items")
+}
+
+model RankCategory {
+  id        String @id @default(cuid())
+  localId   String @unique @map("local_id")
+  title     String
+  sortOrder Int    @default(0) @map("sort_order")
+  items     Rank[]
+
+  @@map("rank_categories")
+}
+
+model Rank {
+  id          String       @id @default(cuid())
+  categoryId  String       @map("category_id")
+  slug        String
+  label       String
+  abbr        String       @default("")
+  cooldown    Int          @default(0)
+  description String       @default("")
+  iconUrl     String       @default("") @map("icon_url")
+  sortOrder   Int          @default(0) @map("sort_order")
+  category    RankCategory @relation(fields: [categoryId], references: [id], onDelete: Cascade)
+
+  @@unique([categoryId, slug])
+  @@map("ranks")
+}
+
+model Medal {
+  slug        String @id
+  displayName String @map("display_name")
+  pictureUrl  String @default("") @map("picture_url")
+  description String @default("")
+  sortOrder   Int    @default(0) @map("sort_order")
+
+  @@map("medals")
+}
+
+model CampaignRibbon {
+  slug        String @id
+  displayName String @map("display_name")
+  pictureUrl  String @default("") @map("picture_url")
+  description String @default("")
+  sortOrder   Int    @default(0) @map("sort_order")
+
+  @@map("campaign_ribbons")
+}
+
+model RadioChannelConfig {
+  id                      Int    @id @default(1)
+  shortRangeHeader        String @default("Short Range Radio (SR)") @map("short_range_header")
+  longRangeHeader         String @default("Long Range Radio (SR)") @map("long_range_header")
+  longRangeFrequencyLabel String @default("LR Frequency") @map("long_range_frequency_label")
+
+  @@map("radio_channel_config")
+}
+
+model RadioChannel {
+  id                   String @id @default(cuid())
+  localId              String @unique @map("local_id")
+  title                String
+  squadRadioNet        String @default("") @map("squad_radio_net")
+  fireteamRadioNetRed  String @default("") @map("fireteam_radio_net_red")
+  fireteamRadioNetBlue String @default("") @map("fireteam_radio_net_blue")
+  longRangeRole        String @default("") @map("long_range_role")
+  longRangeFrequency   String @default("") @map("long_range_frequency")
+  sortOrder            Int    @default(0) @map("sort_order")
+
+  @@map("radio_channels")
+}
+
+model OrbatCategory {
+  id        String       @id @default(cuid())
+  localId   String       @unique @map("local_id")
+  title     String
+  sortOrder Int          @default(0) @map("sort_order")
+  groups    OrbatGroup[]
+
+  @@map("orbat_categories")
+}
+
+model OrbatGroup {
+  id                 String          @id @default(cuid())
+  categoryId         String          @map("category_id")
+  localId            String          @map("local_id")
+  title              String
+  color              String          @default("")
+  backgroundImage    String          @default("") @map("background_image")
+  trainingCategoryId String          @default("") @map("training_category_id")
+  sortOrder          Int             @default(0) @map("sort_order")
+  category           OrbatCategory   @relation(fields: [categoryId], references: [id], onDelete: Cascade)
+  positions          OrbatPosition[]
+
+  @@unique([categoryId, localId])
+  @@map("orbat_groups")
+}
+
+model OrbatPosition {
+  id             String     @id @default(cuid())
+  groupId        String     @map("group_id")
+  localId        String     @map("local_id")
+  position       String
+  assignedUserId String     @default("") @map("assigned_user_id")
+  sortOrder      Int        @default(0) @map("sort_order")
+  lastEditedAt   String     @default("") @map("last_edited_at")
+  group          OrbatGroup @relation(fields: [groupId], references: [id], onDelete: Cascade)
+
+  @@unique([groupId, localId])
+  @@map("orbat_positions")
+}
+
+model DetachmentTag {
+  id    String @id @default(cuid())
+  title String @unique
+  color String @default("")
+  icon  String @default("")
+
+  @@map("detachment_tags")
+}
+
+model AdminDepartment {
+  id            String             @id @default(cuid())
+  localId       String             @unique @map("local_id")
+  title         String
+  sortOrder     Int                @default(0) @map("sort_order")
+  subcategories AdminSubcategory[]
+
+  @@map("admin_departments")
+}
+
+model AdminSubcategory {
+  id           String          @id @default(cuid())
+  departmentId String          @map("department_id")
+  localId      String          @map("local_id")
+  title        String
+  sortOrder    Int             @default(0) @map("sort_order")
+  positions    AdminPosition[]
+  department   AdminDepartment @relation(fields: [departmentId], references: [id], onDelete: Cascade)
+
+  @@unique([departmentId, localId])
+  @@map("admin_subcategories")
+}
+
+model AdminPosition {
+  id             String           @id @default(cuid())
+  subcategoryId  String           @map("subcategory_id")
+  localId        String           @map("local_id")
+  name           String
+  assignedUserId String           @default("") @map("assigned_user_id")
+  status         String           @default("open")
+  sortOrder      Int              @default(0) @map("sort_order")
+  subcategory    AdminSubcategory @relation(fields: [subcategoryId], references: [id], onDelete: Cascade)
+
+  @@unique([subcategoryId, localId])
+  @@map("admin_positions")
+}
+
+model Campaign {
+  id                   String              @id @default(cuid())
+  title                String
+  slug                 String              @unique
+  progress             String              @default("Planned")
+  startDate            String              @default("") @map("start_date")
+  endDate              String              @default("") @map("end_date")
+  loreDate             String              @default("") @map("lore_date")
+  overview             String              @default("")
+  hostileStrengthLevel String              @default("") @map("hostile_strength_level")
+  hostileAssets        String              @default("") @map("hostile_assets")
+  sector               String              @default("")
+  environmentalThreats String              @default("") @map("environmental_threats")
+  additionalIntel      Json?               @map("additional_intel")
+  sortOrder            Int                 @default(0) @map("sort_order")
+  linkedAssets         CampaignAssetLink[]
+  operations           Operation[]
+
+  @@map("campaigns")
+}
+
+model CampaignAssetLink {
+  id         String   @id @default(cuid())
+  campaignId String   @map("campaign_id")
+  assetId    String   @map("asset_id")
+  status     String   @default("Unknown")
+  campaign   Campaign @relation(fields: [campaignId], references: [id], onDelete: Cascade)
+
+  @@map("campaign_asset_links")
+}
+
+model Operation {
+  id                 String              @id @default(cuid())
+  campaignId         String?             @map("campaign_id")
+  title              String
+  slug               String              @unique
+  postDate           String              @default("") @map("post_date")
+  loreDate           String              @default("") @map("lore_date")
+  legacyDate         String?             @map("legacy_date")
+  planet             String              @default("")
+  sector             String              @default("")
+  opposingForce      String              @default("") @map("opposing_force")
+  postedTime         DateTime?           @map("posted_time")
+  missionStatement   String              @default("") @map("mission_statement")
+  description        String              @default("")
+  mainObjective      String              @default("") @map("main_objective")
+  secondaryObjective String              @default("") @map("secondary_objective")
+  optionalObjectives Json?               @map("optional_objectives")
+  terrainConditions  Json?               @map("terrain_conditions")
+  attendees          OperationAttendee[]
+  campaign           Campaign?           @relation(fields: [campaignId], references: [id])
+
+  @@map("operations")
+}
+
+model OperationAttendee {
+  id              String    @id @default(cuid())
+  operationId     String    @map("operation_id")
+  serviceRecordId String    @map("service_record_id")
+  operation       Operation @relation(fields: [operationId], references: [id], onDelete: Cascade)
+
+  @@unique([operationId, serviceRecordId])
+  @@map("operation_attendees")
+}
+
+model ServerSetting {
+  id             Int      @id @default(1)
+  secondaryColor String   @default("") @map("secondary_color")
+  updatedAt      DateTime @updatedAt @map("updated_at")
+
+  @@map("server_settings")
+}
+
+model HomeConfig {
+  id        Int      @id @default(1)
+  payload   Json     @default("{}")
+  updatedAt DateTime @updatedAt @map("updated_at")
+
+  @@map("home_config")
+}
+
+model LoreConfig {
+  id             Int    @id @default(1)
+  backgroundLore String @default("") @map("background_lore")
+
+  @@map("lore_config")
+}
+
+model LoreAssetCategory {
+  id        String      @id @default(cuid())
+  label     String      @unique
+  sortOrder Int         @default(0) @map("sort_order")
+  assets    LoreAsset[]
+
+  @@map("lore_asset_categories")
+}
+
+model LoreAsset {
+  id          String            @id @default(cuid())
+  categoryId  String            @map("category_id")
+  title       String
+  description String            @default("")
+  pictureUrl  String            @default("") @map("picture_url")
+  sortOrder   Int               @default(0) @map("sort_order")
+  category    LoreAssetCategory @relation(fields: [categoryId], references: [id], onDelete: Cascade)
+
+  @@map("lore_assets")
+}
+
+model AuthUser {
+  id            String        @id
+  name          String
+  email         String        @unique
+  emailVerified Boolean
+  image         String?
+  createdAt     DateTime
+  updatedAt     DateTime
+  accounts      AuthAccount[]
+  sessions      AuthSession[]
+
+  @@map("ba_user")
+}
+
+model AuthSession {
+  id        String   @id
+  expiresAt DateTime
+  token     String   @unique
+  createdAt DateTime
+  updatedAt DateTime
+  ipAddress String?
+  userAgent String?
+  userId    String
+  user      AuthUser @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@map("ba_session")
+}
+
+model AuthAccount {
+  id                    String    @id
+  accountId             String
+  providerId            String
+  userId                String
+  accessToken           String?
+  refreshToken          String?
+  idToken               String?
+  accessTokenExpiresAt  DateTime?
+  refreshTokenExpiresAt DateTime?
+  scope                 String?
+  password              String?
+  createdAt             DateTime
+  updatedAt             DateTime
+  user                  AuthUser  @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@map("ba_account")
+}
+
+model AuthVerification {
+  id         String    @id
+  identifier String
+  value      String
+  expiresAt  DateTime
+  createdAt  DateTime?
+  updatedAt  DateTime?
+
+  @@map("ba_verification")
+}
+
+enum ProfileLogCategory {
+  ATTENDANCE
+  TRAINING
+  RANK
+  MEDAL
+  RIBBON
+}
