@@ -2,6 +2,7 @@
 
 import {
   assertPanelAdminAccess,
+  assertSrLeadAccess,
 } from "@/lib/admin/service-record-actions/auth";
 import {
   listAttendanceLogsForUser,
@@ -13,7 +14,7 @@ export async function listAttendanceLogsAction(
   userId: string,
 ): Promise<AdminActionResult<Awaited<ReturnType<typeof listAttendanceLogsForUser>>>> {
   try {
-    await assertPanelAdminAccess();
+    await assertSrLeadAccess();
     const data = await listAttendanceLogsForUser(userId);
     return { ok: true, data };
   } catch (error) {

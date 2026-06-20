@@ -1,7 +1,7 @@
 "use server";
 
 import { revalidatePath } from "next/cache";
-import { assertPanelAdminAccess } from "@/lib/admin/service-record-actions/auth";
+import { assertSrLeadAccess } from "@/lib/admin/service-record-actions/auth";
 import {
   removeAttendance,
   type RemoveAttendanceInput,
@@ -12,7 +12,7 @@ export async function removeAttendanceAction(
   input: RemoveAttendanceInput,
 ): Promise<AdminActionResult<Awaited<ReturnType<typeof removeAttendance>>>> {
   try {
-    await assertPanelAdminAccess();
+    await assertSrLeadAccess();
     const data = await removeAttendance(input);
     revalidatePath("/admin");
     return { ok: true, data };

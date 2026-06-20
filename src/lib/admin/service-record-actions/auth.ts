@@ -51,3 +51,20 @@ export async function assertSrTrainerAccess(): Promise<AccessContext> {
   }
   return access;
 }
+
+export async function assertSrLeadAccess(): Promise<AccessContext> {
+  const access = await requireAuthenticatedAccess();
+  if (
+    !(
+      effectiveSrAdmin(access.flags) ||
+      access.flags.srSquadLeader ||
+      access.flags.srTrainer
+    )
+  ) {
+    throw new ServiceRecordActionError(
+      "Squad lead, team lead, or SR admin access is required.",
+      "FORBIDDEN",
+    );
+  }
+  return access;
+}

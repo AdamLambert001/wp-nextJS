@@ -274,7 +274,8 @@ export function AdminActionsBoard({ data }: AdminActionsBoardProps) {
 
   const attendanceCap = capabilities.effectiveSrAdmin ? 20 : 5;
   const canBulk = capabilities.effectiveSrAdmin || capabilities.srSquadLeader;
-  const canTrain = capabilities.effectiveSrAdmin || capabilities.srTrainer;
+  const canLeadActions =
+    capabilities.effectiveSrAdmin || capabilities.srSquadLeader || capabilities.srTrainer;
   const isPanelAdmin = capabilities.canManageServer;
 
   function populateEditMedal(slug: string) {
@@ -617,7 +618,7 @@ export function AdminActionsBoard({ data }: AdminActionsBoardProps) {
         />
       ) : null}
 
-      {isPanelAdmin ? (
+      {canLeadActions ? (
         <ActionCard
           title="Remove Operation Attendance"
           description="Remove one recorded attendance event and revert the member operation/cooldown values."
@@ -627,7 +628,7 @@ export function AdminActionsBoard({ data }: AdminActionsBoardProps) {
         />
       ) : null}
 
-      {canTrain ? (
+      {canLeadActions ? (
         <ActionCard
           title="Mark Training"
           description="Select one training and mark up to 5 users in one action."
@@ -803,7 +804,7 @@ export function AdminActionsBoard({ data }: AdminActionsBoardProps) {
       id: "attendance-training-ranks",
       title: "Attendance, Training & Ranks",
       content: attendanceTrainingRankActions,
-      hasContent: canBulk || canTrain || isPanelAdmin,
+      hasContent: canBulk || canLeadActions || isPanelAdmin,
     },
     {
       id: "medals",

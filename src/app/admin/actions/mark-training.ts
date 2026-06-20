@@ -1,7 +1,7 @@
 "use server";
 
 import { revalidatePath } from "next/cache";
-import { assertSrTrainerAccess } from "@/lib/admin/service-record-actions/auth";
+import { assertSrLeadAccess } from "@/lib/admin/service-record-actions/auth";
 import {
   markTraining,
   type MarkTrainingInput,
@@ -12,7 +12,7 @@ export async function markTrainingAction(
   input: MarkTrainingInput,
 ): Promise<AdminActionResult<{ updated: number }>> {
   try {
-    const access = await assertSrTrainerAccess();
+    const access = await assertSrLeadAccess();
     const data = await markTraining(input, access);
     revalidatePath("/admin");
     return { ok: true, data };

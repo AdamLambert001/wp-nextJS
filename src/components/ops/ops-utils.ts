@@ -208,3 +208,13 @@ export function sortMonthEntries(entries: MonthEntry[]): MonthEntry[] {
     return titleA.localeCompare(titleB);
   });
 }
+
+export function plainTextFromOpsMarkdown(text: string, maxLength = 320): string {
+  return String(text ?? "")
+    .replace(/\[([^\]]*)\]\([^)]+\)/g, "$1")
+    .replace(/[#*_`~]/g, "")
+    .replace(/\r?\n+/g, " ")
+    .replace(/\s+/g, " ")
+    .trim()
+    .slice(0, maxLength);
+}
