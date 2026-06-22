@@ -21,7 +21,10 @@ import {
   TableHeader,
   TableRow,
 } from "@/components/ui/table";
+import { loadOrbatEditDataAction } from "@/app/actions/orbat";
+import { loadSrSettingsAction, saveSrSettingsAction } from "@/app/actions/sr-settings";
 import { requestJson } from "@/lib/client/request-json";
+import { unwrapActionResult } from "@/lib/client/unwrap-action-result";
 import { composeProfileHeaderDisplayName } from "@/lib/profile/formatting";
 import type { RankCategoryDefinition } from "@/lib/profile/types";
 import type { OrbatMemberOption } from "@/lib/orbat/types";
@@ -41,9 +44,7 @@ type AdminDepartmentsResponse = {
 };
 
 type CapabilitiesResponse = SrCapabilities & { ok: boolean };
-type SettingsResponse = { ok: boolean; settings?: SrSettings; message?: string };
 type TrainingsResponse = { ok: boolean; rankCategories?: RankCategoryDefinition[] };
-type EditDataResponse = { ok: boolean; users?: OrbatMemberOption[] };
 
 type DragState =
   | { type: "section"; fromSection: number }
@@ -109,15 +110,14 @@ export function AdminDepartmentsBoard() {
   }, [loadData]);
 
   async function handleEnterEditMode() {
-    const [settingsData, editData] = await Promise.all([
-      requestJson<SettingsResponse>("/api/sr-settings"),
-      requestJson<EditDataResponse>("/api/orbat/edit-data"),
+    const [settings, editData] = await Promise.all([
+      loadSrSettingsAction().then(unwrapActionResult),
+      loadOrbatEditDataAction().then(unwrapActionResult),
     ]);
-    if (!settingsData.settings) throw new Error("Unable to load settings");
-    setFullSettings(settingsData.settings);
-    setDepartments(settingsData.settings.adminDepartments ?? []);
+    setFullSettings(settings);
+    setDepartments(settings.adminDepartments ?? []);
     setMembers(editData.users ?? []);
-    setRankCategories(settingsData.settings.rankCategories ?? []);
+    setRankCategories(settings.rankCategories ?? []);
     setEditMode(true);
   }
 
@@ -156,11 +156,7 @@ export function AdminDepartmentsBoard() {
           })),
         })),
       };
-      await requestJson("/api/sr-settings", {
-        method: "PUT",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify(payload),
-      });
+      unwrapActionResult(await saveSrSettingsAction(payload));
       setEditMode(false);
       setFullSettings(null);
       setMembers([]);

@@ -1,6 +1,8 @@
 "use client";
 
 import { useCallback, useEffect, useState } from "react";
+import { loadOrbatEditDataAction, saveOrbatAction } from "@/app/actions/orbat";
+import { unwrapActionResult } from "@/lib/client/unwrap-action-result";
 import { toast } from "@/lib/toast";
 import { Button } from "@/components/ui/button";
 import { AnimatedCollapse, AnimatedCollapseChevron } from "@/components/ui/animated-collapse";
@@ -31,13 +33,6 @@ type PublicOrbatResponse = {
   ok: boolean;
   orbatSettings?: OrbatSettings;
   usersById?: Record<string, OrbatUserSummary>;
-  trainingCategories?: TrainingCategorySummary[];
-  message?: string;
-};
-
-type EditDataResponse = {
-  ok: boolean;
-  users?: OrbatMemberOption[];
   trainingCategories?: TrainingCategorySummary[];
   message?: string;
 };
@@ -106,7 +101,7 @@ export function OrbatBoard({ initialCapabilities }: OrbatBoardProps) {
 
   async function handleEnterEditMode() {
     try {
-      const editData = await requestJson<EditDataResponse>("/api/orbat/edit-data");
+      const editData = unwrapActionResult(await loadOrbatEditDataAction());
       setMembers(editData.users ?? []);
       if (editData.trainingCategories?.length) {
         setTrainingCategories(editData.trainingCategories);
@@ -137,11 +132,7 @@ export function OrbatBoard({ initialCapabilities }: OrbatBoardProps) {
     setSaving(true);
     try {
       const payload = prepareOrbatForSave(orbatSettings);
-      await requestJson("/api/orbat", {
-        method: "PUT",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ orbatSettings: payload }),
-      });
+      unwrapActionResult(await saveOrbatAction(payload));
       setEditMode(false);
       setMembers([]);
       setDrag(null);

@@ -8,7 +8,9 @@ import { AnimatedCollapse, AnimatedCollapseChevron } from "@/components/ui/anima
 import { Input } from "@/components/ui/input";
 import { Spinner } from "@/components/ui/spinner";
 import { Textarea } from "@/components/ui/textarea";
+import { loadSrSettingsAction, saveSrSettingsAction } from "@/app/actions/sr-settings";
 import { requestJson } from "@/lib/client/request-json";
+import { unwrapActionResult } from "@/lib/client/unwrap-action-result";
 import { RankIconFileInput } from "@/components/ranks/rank-icon-file-input";
 import type { RankCategoryDefinition } from "@/lib/profile/types";
 import { slugifyInput } from "@/lib/sr-settings/slug";
@@ -21,8 +23,6 @@ type RanksResponse = {
 };
 
 type CapabilitiesResponse = SrCapabilities & { ok: boolean };
-type SettingsResponse = { ok: boolean; settings?: SrSettings; message?: string };
-
 type DragState =
   | { type: "category"; fromCat: number }
   | { type: "rank"; fromCat: number; fromRank: number }
@@ -96,10 +96,9 @@ export function RanksBoard() {
   }, [loadData]);
 
   async function handleEnterEditMode() {
-    const settingsData = await requestJson<SettingsResponse>("/api/sr-settings");
-    if (!settingsData.settings) throw new Error("Unable to load settings");
-    setFullSettings(settingsData.settings);
-    setRankCategories(settingsData.settings.rankCategories ?? []);
+    const settings = unwrapActionResult(await loadSrSettingsAction());
+    setFullSettings(settings);
+    setRankCategories(settings.rankCategories ?? []);
     setEditMode(true);
   }
 
@@ -134,11 +133,7 @@ export function RanksBoard() {
         assignmentPositions: fullSettings.assignmentPositions,
         adminDepartments: fullSettings.adminDepartments,
       };
-      await requestJson("/api/sr-settings", {
-        method: "PUT",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify(payload),
-      });
+      unwrapActionResult(await saveSrSettingsAction(payload));
       setEditMode(false);
       setFullSettings(null);
       setDrag(null);

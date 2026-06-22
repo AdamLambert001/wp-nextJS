@@ -13,7 +13,9 @@ import {
   TableHeader,
   TableRow,
 } from "@/components/ui/table";
+import { loadSrSettingsAction, saveSrSettingsAction } from "@/app/actions/sr-settings";
 import { requestJson } from "@/lib/client/request-json";
+import { unwrapActionResult } from "@/lib/client/unwrap-action-result";
 import { slugifyInput } from "@/lib/sr-settings/slug";
 import type {
   RadioChannelColumn,
@@ -29,8 +31,6 @@ type RadiosResponse = {
 };
 
 type CapabilitiesResponse = SrCapabilities & { ok: boolean };
-type SettingsResponse = { ok: boolean; settings?: SrSettings; message?: string };
-
 function ensureRadioChannels(value: unknown): RadioChannelsSettings {
   const src =
     value && typeof value === "object" && !Array.isArray(value)
@@ -85,10 +85,9 @@ export function RadiosBoard() {
   }, [loadData]);
 
   async function handleEnterEditMode() {
-    const settingsData = await requestJson<SettingsResponse>("/api/sr-settings");
-    if (!settingsData.settings) throw new Error("Unable to load settings");
-    setFullSettings(settingsData.settings);
-    setRadioChannels(ensureRadioChannels(settingsData.settings.radioChannels));
+    const settings = unwrapActionResult(await loadSrSettingsAction());
+    setFullSettings(settings);
+    setRadioChannels(ensureRadioChannels(settings.radioChannels));
     setEditMode(true);
   }
 
@@ -136,11 +135,7 @@ export function RadiosBoard() {
         assignmentPositions: fullSettings.assignmentPositions,
         adminDepartments: fullSettings.adminDepartments,
       };
-      await requestJson("/api/sr-settings", {
-        method: "PUT",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify(payload),
-      });
+      unwrapActionResult(await saveSrSettingsAction(payload));
       setEditMode(false);
       setFullSettings(null);
       await loadData();

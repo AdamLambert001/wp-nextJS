@@ -1,8 +1,6 @@
 import { NextResponse } from "next/server";
-import { loadOrbatSettingsFromDb, loadPublicOrbatData } from "@/lib/orbat/load";
-import { normalizeOrbatSettings } from "@/lib/orbat/normalize";
-import { getOrbatCapabilities, orbatStructureUnchanged } from "@/lib/orbat/permissions";
-import { applyOrbatAssignments, saveOrbatSettings } from "@/lib/orbat/save";
+import { loadPublicOrbatData } from "@/lib/orbat/load";
+import { applyOrbatSave } from "@/lib/orbat/apply-save";
 import { requireAccessFromHeaders } from "@/lib/rbac/get-access";
 import { Permission } from "@/lib/rbac/permissions";
 
@@ -40,48 +38,26 @@ export async function PUT(request: Request) {
   }
 
   const payload = body as { orbatSettings?: unknown };
-  if (
-    payload.orbatSettings === undefined ||
-    typeof payload.orbatSettings !== "object" ||
-    payload.orbatSettings === null ||
-    Array.isArray(payload.orbatSettings)
-  ) {
-    return NextResponse.json(
-      { ok: false, message: "orbatSettings must be an object" },
-      { status: 400 },
-    );
-  }
-
-  const incoming = normalizeOrbatSettings(payload.orbatSettings);
-  const capabilities = getOrbatCapabilities(access.flags);
-
-  if (!capabilities.canEditStructure) {
-    const current = await loadOrbatSettingsFromDb();
-    if (!orbatStructureUnchanged(current, incoming)) {
-      return NextResponse.json(
-        {
-          ok: false,
-          message: "You may only change ORBAT assignments, not structure.",
-        },
-        { status: 403 },
-      );
-    }
-  }
 
   try {
-    const saved = await saveOrbatSettings(incoming);
-    const assignmentResult = await applyOrbatAssignments(saved);
-
+    const result = await applyOrbatSave(access, payload.orbatSettings);
     return NextResponse.json({
       ok: true,
-      orbatSettings: saved,
-      assignmentResult,
+      orbatSettings: result.orbatSettings,
+      assignmentResult: result.assignmentResult,
     });
   } catch (error) {
-    console.error("Failed to save ORBAT settings", error);
-    return NextResponse.json(
-      { ok: false, message: "Failed to save ORBAT settings" },
-      { status: 500 },
-    );
+    const message = error instanceof Error ? error.message : "Failed to save ORBAT settings";
+    const status =
+      message === "orbatSettings must be an object" ||
+      message === "You may only change ORBAT assignments, not structure."
+        ? message === "orbatSettings must be an object"
+          ? 400
+          : 403
+        : 500;
+    if (status === 500) {
+      console.error("Failed to save ORBAT settings", error);
+    }
+    return NextResponse.json({ ok: false, message }, { status });
   }
 }
