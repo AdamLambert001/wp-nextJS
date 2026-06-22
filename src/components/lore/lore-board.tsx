@@ -22,9 +22,7 @@ import {
 } from "@/components/ui/select";
 import { Spinner } from "@/components/ui/spinner";
 import { Textarea } from "@/components/ui/textarea";
-import { saveLoreAction } from "@/app/actions/lore";
 import { requestJson } from "@/lib/client/request-json";
-import { unwrapActionResult } from "@/lib/client/unwrap-action-result";
 import { ImageUrlOrUpload } from "@/components/edgestore/image-url-or-upload";
 import type { LoreAsset, UnitLore } from "@/lib/lore/types";
 import type { SrCapabilities } from "@/lib/sr-settings/types";
@@ -81,8 +79,12 @@ export function LoreBoard() {
     if (!draft) return;
     setSaving(true);
     try {
-      const saved = unwrapActionResult(await saveLoreAction(draft));
-      setLore(saved);
+      const data = await requestJson<LoreResponse>("/api/lore", {
+        method: "PUT",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(draft),
+      });
+      setLore(data.lore ?? draft);
       setEditMode(false);
       setDraft(null);
       toast.success("Unit lore saved.");

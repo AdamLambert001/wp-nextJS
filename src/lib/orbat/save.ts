@@ -2,52 +2,49 @@ import { ORBAT_SLOT_OPEN_ID } from "@/lib/orbat/constants";
 import type { OrbatSettings } from "@/lib/orbat/types";
 import { prisma } from "@/lib/prisma";
 
+const TRANSACTION_TIMEOUT_MS = 60_000;
+
 export async function saveOrbatSettings(orbatSettings: OrbatSettings): Promise<OrbatSettings> {
-  await prisma.$transaction(async (tx) => {
-    await tx.orbatPosition.deleteMany();
-    await tx.orbatGroup.deleteMany();
-    await tx.orbatCategory.deleteMany();
+  await prisma.$transaction(
+    async (tx) => {
+      await tx.orbatPosition.deleteMany();
+      await tx.orbatGroup.deleteMany();
+      await tx.orbatCategory.deleteMany();
 
-    for (let categoryIndex = 0; categoryIndex < orbatSettings.categories.length; categoryIndex += 1) {
-      const category = orbatSettings.categories[categoryIndex];
-      const categoryRow = await tx.orbatCategory.create({
-        data: {
-          localId: category.id,
-          title: category.title,
-          sortOrder: categoryIndex,
-        },
-      });
-
-      for (let groupIndex = 0; groupIndex < category.groups.length; groupIndex += 1) {
-        const group = category.groups[groupIndex];
-        const groupRow = await tx.orbatGroup.create({
+      for (let categoryIndex = 0; categoryIndex < orbatSettings.categories.length; categoryIndex += 1) {
+        const category = orbatSettings.categories[categoryIndex];
+        await tx.orbatCategory.create({
           data: {
-            categoryId: categoryRow.id,
-            localId: group.id,
-            title: group.title,
-            color: group.color || "",
-            backgroundImage: group.backgroundImage || "",
-            trainingCategoryId: group.trainingCategoryId || "",
-            sortOrder: groupIndex,
+            localId: category.id,
+            title: category.title,
+            sortOrder: categoryIndex,
+            groups: {
+              create: category.groups.map((group, groupIndex) => ({
+                localId: group.id,
+                title: group.title,
+                color: group.color || "",
+                backgroundImage: group.backgroundImage || "",
+                trainingCategoryId: group.trainingCategoryId || "",
+                sortOrder: groupIndex,
+                positions: {
+                  createMany: {
+                    data: group.rows.map((row, rowIndex) => ({
+                      localId: row.id,
+                      position: row.position,
+                      assignedUserId: row.assignedUserId || "",
+                      lastEditedAt: row.lastEditedAt || "",
+                      sortOrder: rowIndex,
+                    })),
+                  },
+                },
+              })),
+            },
           },
         });
-
-        for (let rowIndex = 0; rowIndex < group.rows.length; rowIndex += 1) {
-          const row = group.rows[rowIndex];
-          await tx.orbatPosition.create({
-            data: {
-              groupId: groupRow.id,
-              localId: row.id,
-              position: row.position,
-              assignedUserId: row.assignedUserId || "",
-              lastEditedAt: row.lastEditedAt || "",
-              sortOrder: rowIndex,
-            },
-          });
-        }
       }
-    }
-  });
+    },
+    { timeout: TRANSACTION_TIMEOUT_MS },
+  );
 
   return orbatSettings;
 }

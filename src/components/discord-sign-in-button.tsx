@@ -1,25 +1,24 @@
 "use client";
 
 import { Button } from "@/components/ui/button";
-import { authClient } from "@/lib/auth-client";
 import { cn } from "@/lib/utils";
 import type { ComponentProps } from "react";
 
 type DiscordSignInButtonProps = Omit<ComponentProps<typeof Button>, "onClick"> & {
   children?: React.ReactNode;
+  callbackURL?: string;
 };
 
 export function DiscordSignInButton({
   className,
   children = "Sign in with Discord",
   size = "lg",
+  callbackURL = "/",
   ...props
 }: DiscordSignInButtonProps) {
-  async function handleSignIn() {
-    await authClient.signIn.social({
-      provider: "discord",
-      callbackURL: "/",
-    });
+  function handleSignIn() {
+    const destination = encodeURIComponent(callbackURL);
+    window.location.assign(`/auth/discord?callbackURL=${destination}`);
   }
 
   return (

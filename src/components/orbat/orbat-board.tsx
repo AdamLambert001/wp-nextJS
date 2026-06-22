@@ -1,8 +1,7 @@
 "use client";
 
 import { useCallback, useEffect, useState } from "react";
-import { loadOrbatEditDataAction, saveOrbatAction } from "@/app/actions/orbat";
-import { unwrapActionResult } from "@/lib/client/unwrap-action-result";
+import { requestJson } from "@/lib/client/request-json";
 import { toast } from "@/lib/toast";
 import { Button } from "@/components/ui/button";
 import { AnimatedCollapse, AnimatedCollapseChevron } from "@/components/ui/animated-collapse";
@@ -37,16 +36,12 @@ type PublicOrbatResponse = {
   message?: string;
 };
 
-async function requestJson<T>(url: string, options?: RequestInit): Promise<T> {
-  const response = await fetch(url, options);
-  const data = (await response.json().catch(() => ({}))) as T & { message?: string };
-  if (!response.ok) {
-    throw new Error(
-      typeof data.message === "string" ? data.message : "Request failed",
-    );
-  }
-  return data;
-}
+type EditDataResponse = {
+  ok: boolean;
+  users?: OrbatMemberOption[];
+  trainingCategories?: TrainingCategorySummary[];
+  message?: string;
+};
 
 export function OrbatBoard({ initialCapabilities }: OrbatBoardProps) {
   const [loading, setLoading] = useState(true);
@@ -101,7 +96,7 @@ export function OrbatBoard({ initialCapabilities }: OrbatBoardProps) {
 
   async function handleEnterEditMode() {
     try {
-      const editData = unwrapActionResult(await loadOrbatEditDataAction());
+      const editData = await requestJson<EditDataResponse>("/api/orbat/edit-data");
       setMembers(editData.users ?? []);
       if (editData.trainingCategories?.length) {
         setTrainingCategories(editData.trainingCategories);
@@ -132,7 +127,11 @@ export function OrbatBoard({ initialCapabilities }: OrbatBoardProps) {
     setSaving(true);
     try {
       const payload = prepareOrbatForSave(orbatSettings);
-      unwrapActionResult(await saveOrbatAction(payload));
+      await requestJson("/api/orbat", {
+        method: "PUT",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ orbatSettings: payload }),
+      });
       setEditMode(false);
       setMembers([]);
       setDrag(null);

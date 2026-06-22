@@ -1,9 +1,7 @@
 "use client";
 
-import { useState } from "react";
 import { useRouter } from "next/navigation";
 import { LogOut, Palette, Shield, User } from "lucide-react";
-import { signOutAction } from "@/app/actions/auth";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { buttonVariants } from "@/components/ui/button";
 import { ThemeColorPicker } from "@/components/theme-color-picker";
@@ -21,9 +19,7 @@ import {
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
 import { Button } from "@/components/ui/button";
-import { unwrapActionResult } from "@/lib/client/unwrap-action-result";
 import { hasPermission } from "@/lib/rbac/access";
-import { toast } from "@/lib/toast";
 import { Permission } from "@/lib/rbac/permissions";
 import type { SerializedAccessContext } from "@/lib/rbac/types";
 import { cn } from "@/lib/utils";
@@ -34,7 +30,6 @@ type UserMenuProps = {
 
 export function UserMenu({ access }: UserMenuProps) {
   const router = useRouter();
-  const [signingOut, setSigningOut] = useState(false);
   const {
     effectiveSecondaryHex,
     globalSecondaryHex,
@@ -44,20 +39,6 @@ export function UserMenu({ access }: UserMenuProps) {
   } = useThemeSecondary();
   const permissions = new Set(access.permissions);
   const canAccessAdmin = hasPermission(permissions, Permission.ACCESS_ADMIN);
-
-  async function handleSignOut() {
-    if (signingOut) return;
-    setSigningOut(true);
-    try {
-      unwrapActionResult(await signOutAction());
-      router.push("/");
-      router.refresh();
-    } catch (error) {
-      toast.error(error instanceof Error ? error.message : "Failed to sign out");
-    } finally {
-      setSigningOut(false);
-    }
-  }
 
   return (
     <DropdownMenu>
@@ -137,11 +118,12 @@ export function UserMenu({ access }: UserMenuProps) {
 
         <DropdownMenuItem
           variant="destructive"
-          disabled={signingOut}
-          onClick={() => handleSignOut()}
+          onClick={() => {
+            window.location.assign("/auth/sign-out");
+          }}
         >
           <LogOut />
-          {signingOut ? "Signing out..." : "Sign out"}
+          Sign out
         </DropdownMenuItem>
       </DropdownMenuContent>
     </DropdownMenu>

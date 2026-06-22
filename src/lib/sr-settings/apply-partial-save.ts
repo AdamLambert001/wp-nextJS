@@ -7,7 +7,7 @@ import {
   effectiveSrAdmin,
   isPanelAdmin,
 } from "@/lib/sr-settings/permissions";
-import { saveSrSettingsWithOrbatAssignments } from "@/lib/sr-settings/save";
+import { saveSrSettingsWithOrbatAssignments, parseSrSettingsSaveScopes } from "@/lib/sr-settings/save";
 import type { SrSettings } from "@/lib/sr-settings/types";
 
 export function validateSrSettingsPartialBody(
@@ -47,6 +47,13 @@ export function validateSrSettingsPartialBody(
   if (body.assignments !== undefined && !Array.isArray(body.assignments)) {
     return "assignments must be an array";
   }
+  if (body._scopes !== undefined) {
+    try {
+      parseSrSettingsSaveScopes(body._scopes);
+    } catch (error) {
+      return error instanceof Error ? error.message : "Invalid _scopes";
+    }
+  }
   if (
     body.assignmentPositions !== undefined &&
     (typeof body.assignmentPositions !== "object" ||
@@ -67,6 +74,7 @@ export async function applySrSettingsPartialSave(
     throw new Error(validationError);
   }
 
+  const scopes = parseSrSettingsSaveScopes(body._scopes);
   const panelAdmin = isPanelAdmin(access.flags);
   const canSaveBoards = canEditSrBoards(access.flags);
   const squadOnly = access.flags.srSquadLeader && !effectiveSrAdmin(access.flags);
@@ -86,7 +94,7 @@ export async function applySrSettingsPartialSave(
     }
     return saveSrSettingsWithOrbatAssignments(
       { ...current, orbatSettings: body.orbatSettings as SrSettings["orbatSettings"] },
-      { applyAssignments: true },
+      { applyAssignments: true, scopes: ["orbat"] },
     );
   }
 
@@ -165,5 +173,6 @@ export async function applySrSettingsPartialSave(
 
   return saveSrSettingsWithOrbatAssignments(merged, {
     applyAssignments: body.orbatSettings !== undefined,
+    scopes,
   });
 }

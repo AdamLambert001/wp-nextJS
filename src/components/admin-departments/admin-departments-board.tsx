@@ -21,10 +21,7 @@ import {
   TableHeader,
   TableRow,
 } from "@/components/ui/table";
-import { loadOrbatEditDataAction } from "@/app/actions/orbat";
-import { loadSrSettingsAction, saveSrSettingsAction } from "@/app/actions/sr-settings";
 import { requestJson } from "@/lib/client/request-json";
-import { unwrapActionResult } from "@/lib/client/unwrap-action-result";
 import { composeProfileHeaderDisplayName } from "@/lib/profile/formatting";
 import type { RankCategoryDefinition } from "@/lib/profile/types";
 import type { OrbatMemberOption } from "@/lib/orbat/types";
@@ -44,7 +41,9 @@ type AdminDepartmentsResponse = {
 };
 
 type CapabilitiesResponse = SrCapabilities & { ok: boolean };
+type SettingsResponse = { ok: boolean; settings?: SrSettings; message?: string };
 type TrainingsResponse = { ok: boolean; rankCategories?: RankCategoryDefinition[] };
+type EditDataResponse = { ok: boolean; users?: OrbatMemberOption[] };
 
 type DragState =
   | { type: "section"; fromSection: number }
@@ -110,14 +109,15 @@ export function AdminDepartmentsBoard() {
   }, [loadData]);
 
   async function handleEnterEditMode() {
-    const [settings, editData] = await Promise.all([
-      loadSrSettingsAction().then(unwrapActionResult),
-      loadOrbatEditDataAction().then(unwrapActionResult),
+    const [settingsData, editData] = await Promise.all([
+      requestJson<SettingsResponse>("/api/sr-settings"),
+      requestJson<EditDataResponse>("/api/orbat/edit-data"),
     ]);
-    setFullSettings(settings);
-    setDepartments(settings.adminDepartments ?? []);
+    if (!settingsData.settings) throw new Error("Unable to load settings");
+    setFullSettings(settingsData.settings);
+    setDepartments(settingsData.settings.adminDepartments ?? []);
     setMembers(editData.users ?? []);
-    setRankCategories(settings.rankCategories ?? []);
+    setRankCategories(settingsData.settings.rankCategories ?? []);
     setEditMode(true);
   }
 
@@ -134,12 +134,7 @@ export function AdminDepartmentsBoard() {
     setSaving(true);
     try {
       const payload = {
-        trainingCategories: fullSettings.trainingCategories,
-        rankCategories: fullSettings.rankCategories,
-        medals: fullSettings.medals,
-        campaignRibbons: fullSettings.campaignRibbons,
-        assignments: fullSettings.assignments,
-        assignmentPositions: fullSettings.assignmentPositions,
+        _scopes: ["adminDepartments"],
         adminDepartments: departments.map((section) => ({
           id: normalizeSlug(String(section.id || section.title)),
           title: String(section.title ?? "").trim() || "Section",
@@ -156,7 +151,11 @@ export function AdminDepartmentsBoard() {
           })),
         })),
       };
-      unwrapActionResult(await saveSrSettingsAction(payload));
+      await requestJson("/api/sr-settings", {
+        method: "PUT",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(payload),
+      });
       setEditMode(false);
       setFullSettings(null);
       setMembers([]);
