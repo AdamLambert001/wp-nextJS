@@ -1,6 +1,14 @@
 "use client";
 
-import { useCallback, useEffect, useMemo, useState } from "react";
+import {
+  useCallback,
+  useEffect,
+  useMemo,
+  useRef,
+  useState,
+  type ClipboardEvent as ReactClipboardEvent,
+  type KeyboardEvent as ReactKeyboardEvent,
+} from "react";
 import Image from "next/image";
 import { toast } from "@/lib/toast";
 import { LoreCampaignTimeline } from "@/components/lore/lore-campaign-timeline";
@@ -20,8 +28,10 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
+import { ScrollArea } from "@/components/ui/scroll-area";
+import { Separator } from "@/components/ui/separator";
 import { Spinner } from "@/components/ui/spinner";
-import { Textarea } from "@/components/ui/textarea";
+import { ToggleGroup, ToggleGroupItem } from "@/components/ui/toggle-group";
 import { requestJson } from "@/lib/client/request-json";
 import { ImageUrlOrUpload } from "@/components/edgestore/image-url-or-upload";
 import type { LoreAsset, UnitLore } from "@/lib/lore/types";
@@ -43,6 +53,331 @@ function groupAssetsByCategory(lore: UnitLore) {
   return groups;
 }
 
+const allowedRichTextTags = new Set([
+  "b",
+  "blockquote",
+  "br",
+  "div",
+  "em",
+  "h3",
+  "h4",
+  "hr",
+  "i",
+  "li",
+  "ol",
+  "p",
+  "s",
+  "strong",
+  "u",
+  "ul",
+]);
+
+const selfClosingRichTextTags = new Set(["br", "hr"]);
+const richTextClassName =
+  "[&_blockquote]:my-3 [&_blockquote]:border-l-2 [&_blockquote]:border-border [&_blockquote]:pl-3 [&_blockquote]:text-muted-foreground [&_h3]:mb-2 [&_h3]:mt-4 [&_h3]:text-lg [&_h3]:font-semibold [&_h4]:mb-2 [&_h4]:mt-3 [&_h4]:font-semibold [&_hr]:my-4 [&_hr]:border-border [&_li]:mt-1 [&_ol]:my-3 [&_ol]:list-decimal [&_ol]:pl-6 [&_p]:my-2 [&_strong]:font-semibold [&_ul]:my-3 [&_ul]:list-disc [&_ul]:pl-6";
+
+function escapeHtml(value: string) {
+  return String(value || "")
+    .replace(/&/g, "&amp;")
+    .replace(/</g, "&lt;")
+    .replace(/>/g, "&gt;")
+    .replace(/"/g, "&quot;")
+    .replace(/'/g, "&#39;");
+}
+
+function escapeRichTextSegment(value: string) {
+  return String(value || "").replace(/</g, "&lt;").replace(/>/g, "&gt;");
+}
+
+function sanitizeRichTextMarkup(value: string) {
+  const raw = String(value || "");
+
+  if (!/<\/?[a-z][\s\S]*>/i.test(raw)) {
+    return escapeHtml(raw).replace(/\r?\n/g, "<br />");
+  }
+
+  const tagPattern = /<\/?([a-z][a-z0-9]*)(?:\s[^>]*)?\/?>/gi;
+  let clean = "";
+  let lastIndex = 0;
+  let match: RegExpExecArray | null;
+
+  while ((match = tagPattern.exec(raw)) !== null) {
+    const tag = match[1]?.toLowerCase() ?? "";
+    clean += escapeRichTextSegment(raw.slice(lastIndex, match.index));
+
+    if (allowedRichTextTags.has(tag)) {
+      const closing = match[0].startsWith("</");
+      clean += closing && !selfClosingRichTextTags.has(tag) ? `</${tag}>` : `<${tag}>`;
+    }
+
+    lastIndex = match.index + match[0].length;
+  }
+
+  clean += escapeRichTextSegment(raw.slice(lastIndex));
+  return clean;
+}
+
+function normalizeEditorHtml(value: string) {
+  return sanitizeRichTextMarkup(value)
+    .replace(/^(<br\s*\/?>|\s|&nbsp;)*$/i, "")
+    .trim();
+}
+
+function RichTextContent({
+  value,
+  className,
+}: {
+  value: string;
+  className?: string;
+}) {
+  return (
+    <div
+      className={className}
+      dangerouslySetInnerHTML={{
+        __html: sanitizeRichTextMarkup(value || "No description provided."),
+      }}
+    />
+  );
+}
+
+type ActiveFormats = {
+  bold: boolean;
+  italic: boolean;
+  orderedList: boolean;
+  strikeThrough: boolean;
+  underline: boolean;
+  unorderedList: boolean;
+  block: string;
+};
+
+const emptyActiveFormats: ActiveFormats = {
+  bold: false,
+  italic: false,
+  orderedList: false,
+  strikeThrough: false,
+  underline: false,
+  unorderedList: false,
+  block: "p",
+};
+
+function RichTextEditor({
+  value,
+  onChange,
+  minHeightClassName = "min-h-40",
+}: {
+  value: string;
+  onChange: (value: string) => void;
+  minHeightClassName?: string;
+}) {
+  const editorRef = useRef<HTMLDivElement | null>(null);
+  const [activeFormats, setActiveFormats] = useState<ActiveFormats>(emptyActiveFormats);
+
+  const updateActiveFormats = useCallback(() => {
+    if (typeof document === "undefined") return;
+
+    const block = String(document.queryCommandValue("formatBlock") || "p")
+      .replace(/[<>]/g, "")
+      .toLowerCase();
+
+    setActiveFormats({
+      bold: document.queryCommandState("bold"),
+      italic: document.queryCommandState("italic"),
+      orderedList: document.queryCommandState("insertOrderedList"),
+      strikeThrough: document.queryCommandState("strikeThrough"),
+      underline: document.queryCommandState("underline"),
+      unorderedList: document.queryCommandState("insertUnorderedList"),
+      block,
+    });
+  }, []);
+
+  const emitChange = useCallback(() => {
+    const nextValue = normalizeEditorHtml(editorRef.current?.innerHTML ?? "");
+    onChange(nextValue);
+    updateActiveFormats();
+  }, [onChange, updateActiveFormats]);
+
+  const runCommand = useCallback(
+    (command: string, commandValue?: string) => {
+      editorRef.current?.focus();
+      document.execCommand(command, false, commandValue);
+      emitChange();
+    },
+    [emitChange],
+  );
+
+  useEffect(() => {
+    const editor = editorRef.current;
+    if (!editor) return;
+
+    const nextHtml = sanitizeRichTextMarkup(value);
+    if (editor.innerHTML !== nextHtml && document.activeElement !== editor) {
+      editor.innerHTML = nextHtml;
+    }
+  }, [value]);
+
+  useEffect(() => {
+    document.addEventListener("selectionchange", updateActiveFormats);
+    return () => document.removeEventListener("selectionchange", updateActiveFormats);
+  }, [updateActiveFormats]);
+
+  function handleKeyDown(event: ReactKeyboardEvent<HTMLDivElement>) {
+    const modifier = event.ctrlKey || event.metaKey;
+    if (!modifier) return;
+
+    const key = event.key.toLowerCase();
+    const shifted = event.shiftKey;
+
+    if (key === "b" || key === "i" || key === "u") {
+      event.preventDefault();
+      runCommand(key === "b" ? "bold" : key === "i" ? "italic" : "underline");
+      return;
+    }
+
+    if (shifted && key === "7") {
+      event.preventDefault();
+      runCommand("insertOrderedList");
+      return;
+    }
+
+    if (shifted && key === "8") {
+      event.preventDefault();
+      runCommand("insertUnorderedList");
+    }
+  }
+
+  function handlePaste(event: ReactClipboardEvent<HTMLDivElement>) {
+    event.preventDefault();
+    const html = event.clipboardData.getData("text/html");
+    const text = event.clipboardData.getData("text/plain");
+    const nextHtml = html
+      ? sanitizeRichTextMarkup(html)
+      : escapeHtml(text).replace(/\r?\n/g, "<br />");
+    document.execCommand("insertHTML", false, nextHtml);
+    emitChange();
+  }
+
+  return (
+    <div className="rounded-md border border-input bg-background">
+      <div className="flex flex-wrap items-center gap-2 border-b border-border p-2">
+        <ToggleGroup variant="outline" size="sm" spacing={0} className="flex-wrap">
+          <ToggleGroupItem
+            aria-label="Bold"
+            pressed={activeFormats.bold}
+            title="Bold (Ctrl+B)"
+            onMouseDown={(event) => event.preventDefault()}
+            onPressedChange={() => runCommand("bold")}
+          >
+            <strong>B</strong>
+          </ToggleGroupItem>
+          <ToggleGroupItem
+            aria-label="Italic"
+            pressed={activeFormats.italic}
+            title="Italic (Ctrl+I)"
+            onMouseDown={(event) => event.preventDefault()}
+            onPressedChange={() => runCommand("italic")}
+          >
+            <em>I</em>
+          </ToggleGroupItem>
+          <ToggleGroupItem
+            aria-label="Underline"
+            pressed={activeFormats.underline}
+            title="Underline (Ctrl+U)"
+            onMouseDown={(event) => event.preventDefault()}
+            onPressedChange={() => runCommand("underline")}
+          >
+            <span className="underline">U</span>
+          </ToggleGroupItem>
+          <ToggleGroupItem
+            aria-label="Strikethrough"
+            pressed={activeFormats.strikeThrough}
+            title="Strikethrough"
+            onMouseDown={(event) => event.preventDefault()}
+            onPressedChange={() => runCommand("strikeThrough")}
+          >
+            <span className="line-through">S</span>
+          </ToggleGroupItem>
+        </ToggleGroup>
+
+        <Separator orientation="vertical" className="h-7" />
+
+        <ToggleGroup variant="outline" size="sm" spacing={0} className="flex-wrap">
+          <ToggleGroupItem
+            aria-label="Bulleted list"
+            pressed={activeFormats.unorderedList}
+            title="Bulleted list (Ctrl+Shift+8)"
+            onMouseDown={(event) => event.preventDefault()}
+            onPressedChange={() => runCommand("insertUnorderedList")}
+          >
+            Bullets
+          </ToggleGroupItem>
+          <ToggleGroupItem
+            aria-label="Numbered list"
+            pressed={activeFormats.orderedList}
+            title="Numbered list (Ctrl+Shift+7)"
+            onMouseDown={(event) => event.preventDefault()}
+            onPressedChange={() => runCommand("insertOrderedList")}
+          >
+            1.
+          </ToggleGroupItem>
+          <ToggleGroupItem
+            aria-label="Separator"
+            title="Insert separator"
+            onMouseDown={(event) => event.preventDefault()}
+            onPressedChange={() => runCommand("insertHorizontalRule")}
+          >
+            Rule
+          </ToggleGroupItem>
+        </ToggleGroup>
+
+        <Separator orientation="vertical" className="h-7" />
+
+        <ToggleGroup variant="outline" size="sm" spacing={0} className="flex-wrap">
+          <ToggleGroupItem
+            aria-label="Paragraph"
+            pressed={activeFormats.block === "p" || activeFormats.block === "div"}
+            title="Paragraph"
+            onMouseDown={(event) => event.preventDefault()}
+            onPressedChange={() => runCommand("formatBlock", "p")}
+          >
+            P
+          </ToggleGroupItem>
+          <ToggleGroupItem
+            aria-label="Heading"
+            pressed={activeFormats.block === "h3"}
+            title="Heading"
+            onMouseDown={(event) => event.preventDefault()}
+            onPressedChange={() => runCommand("formatBlock", "h3")}
+          >
+            H
+          </ToggleGroupItem>
+          <ToggleGroupItem
+            aria-label="Quote"
+            pressed={activeFormats.block === "blockquote"}
+            title="Quote"
+            onMouseDown={(event) => event.preventDefault()}
+            onPressedChange={() => runCommand("formatBlock", "blockquote")}
+          >
+            Quote
+          </ToggleGroupItem>
+        </ToggleGroup>
+      </div>
+      <div
+        ref={editorRef}
+        className={`${richTextClassName} max-w-none overflow-y-auto px-3 py-2 text-sm leading-relaxed outline-none ${minHeightClassName} max-h-72 focus-visible:ring-[3px] focus-visible:ring-ring/50`}
+        contentEditable
+        role="textbox"
+        aria-multiline="true"
+        suppressContentEditableWarning
+        onInput={emitChange}
+        onBlur={emitChange}
+        onFocus={updateActiveFormats}
+        onKeyDown={handleKeyDown}
+        onPaste={handlePaste}
+      />
+    </div>
+  );
+}
+
 export function LoreBoard() {
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
@@ -62,7 +397,8 @@ export function LoreBoard() {
   }, []);
 
   useEffect(() => {
-    loadData()
+    void Promise.resolve()
+      .then(loadData)
       .catch((error) => {
         toast.error(error instanceof Error ? error.message : "Failed to load lore");
       })
@@ -161,12 +497,12 @@ export function LoreBoard() {
               <span className="text-xs uppercase tracking-wide text-muted-foreground">
                 Background lore
               </span>
-              <Textarea
-                rows={10}
+              <RichTextEditor
                 value={draft.backgroundLore}
-                onChange={(event) =>
+                minHeightClassName="min-h-56"
+                onChange={(value) =>
                   setDraft((prev) =>
-                    prev ? { ...prev, backgroundLore: event.target.value } : prev,
+                    prev ? { ...prev, backgroundLore: value } : prev,
                   )
                 }
               />
@@ -327,14 +663,13 @@ export function LoreBoard() {
                       />
                       <label className="grid gap-1 text-xs uppercase tracking-wide text-muted-foreground md:col-span-2">
                         Description
-                        <Textarea
-                          rows={4}
+                        <RichTextEditor
                           value={asset.description}
-                          onChange={(event) =>
+                          onChange={(value) =>
                             setDraft((prev) => {
                               if (!prev) return prev;
                               const assets = [...prev.assets];
-                              assets[index] = { ...assets[index], description: event.target.value };
+                              assets[index] = { ...assets[index], description: value };
                               return { ...prev, assets };
                             })
                           }
@@ -397,9 +732,10 @@ export function LoreBoard() {
         ) : (
           <>
             {activeLore.backgroundLore ? (
-              <div className="mb-6 whitespace-pre-wrap leading-relaxed text-foreground">
-                {activeLore.backgroundLore}
-              </div>
+              <RichTextContent
+                value={activeLore.backgroundLore}
+                className={`${richTextClassName} mb-6 leading-relaxed text-foreground`}
+              />
             ) : (
               <p className="mb-6 text-muted-foreground">No background lore entered yet.</p>
             )}
@@ -451,10 +787,10 @@ export function LoreBoard() {
       </div>
 
       <Dialog open={Boolean(selectedAsset)} onOpenChange={(open) => !open && setSelectedAsset(null)}>
-        <DialogContent className="max-w-3xl gap-5 p-6 sm:max-w-3xl">
+        <DialogContent className="flex h-[85vh] max-w-3xl flex-col gap-4 overflow-hidden p-6 sm:max-w-3xl">
           {selectedAsset ? (
             <>
-              <DialogHeader>
+              <DialogHeader className="shrink-0">
                 <DialogTitle className="text-xl">{selectedAsset.title}</DialogTitle>
               </DialogHeader>
               {selectedAsset.pictureUrl ? (
@@ -463,14 +799,19 @@ export function LoreBoard() {
                   alt={selectedAsset.title}
                   width={720}
                   height={420}
-                  className="max-h-[420px] w-full rounded-md border border-border object-contain"
+                  className="h-[clamp(180px,34vh,360px)] w-full shrink-0 rounded-md border border-border object-contain"
                   unoptimized
                 />
               ) : null}
-              <Badge variant="outline">{selectedAsset.category}</Badge>
-              <p className="whitespace-pre-wrap text-base leading-relaxed">
-                {selectedAsset.description || "No description provided."}
-              </p>
+              <div className="shrink-0">
+                <Badge variant="outline">{selectedAsset.category}</Badge>
+              </div>
+              <ScrollArea className="min-h-0 flex-1 rounded-md border border-border bg-background/60">
+                <RichTextContent
+                  value={selectedAsset.description}
+                  className={`${richTextClassName} p-4 text-base leading-relaxed`}
+                />
+              </ScrollArea>
             </>
           ) : null}
         </DialogContent>
