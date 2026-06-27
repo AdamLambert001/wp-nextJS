@@ -10,6 +10,7 @@ datasource db {
 model GameServer {
   id              String   @id
   name            String
+  address         String   @default("") @map("server_address")
   port            Int
   profileId       String   @map("profile_id")
   mods            String   @default("")

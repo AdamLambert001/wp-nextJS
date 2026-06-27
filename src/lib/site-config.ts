@@ -29,6 +29,11 @@ export const headerNav: readonly NavItem[] = [
         description: "Short-range and long-range radio net reference.",
       },
       {
+        label: "Servers",
+        href: "/servers",
+        description: "Server status, player counts, and connection details.",
+      },
+      {
         label: "Lore",
         href: "/lore",
         description: "Background, assets, and campaign intel.",
@@ -96,6 +101,13 @@ export const navSections: readonly PanelSection[] = [
     title: "Radios",
     description: "Short-range and long-range radio net reference.",
     href: "/radios",
+    status: "available",
+  },
+  {
+    label: "Servers",
+    title: "Servers",
+    description: "Server status, player counts, and connection details.",
+    href: "/servers",
     status: "available",
   },
   {

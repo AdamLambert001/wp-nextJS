@@ -5,6 +5,7 @@ import {
   BookOpenIcon,
   Building2Icon,
   RadioIcon,
+  ServerIcon,
   ShieldIcon,
   type LucideIcon,
 } from "lucide-react";
@@ -23,6 +24,7 @@ import { cn } from "@/lib/utils";
 const dropdownIcons: Record<string, LucideIcon> = {
   Ranks: ShieldIcon,
   Radios: RadioIcon,
+  Servers: ServerIcon,
   Lore: BookOpenIcon,
   "Admin Departments": Building2Icon,
 };

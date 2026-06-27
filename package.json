@@ -22,6 +22,7 @@
     "date-fns": "^4.4.0",
     "dotenv": "^17.4.2",
     "embla-carousel-react": "^8.6.0",
+    "gamedig": "^5.3.3",
     "input-otp": "^1.4.2",
     "lucide-react": "^1.21.0",
     "motion": "^12.40.0",
