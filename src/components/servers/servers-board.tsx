@@ -7,6 +7,7 @@ import {
   GlobeIcon,
   PencilIcon,
   PlusIcon,
+  UsersIcon,
 } from "lucide-react";
 import {
   addServerAction,
@@ -141,8 +142,10 @@ function ServerCard({
 }) {
   const [refreshing, startRefresh] = useTransition();
   const [editing, setEditing] = useState(false);
+  const [playersOpen, setPlayersOpen] = useState(false);
   const status = server.status;
   const address = fullAddress(server);
+  const hasPlayerGroups = status.playerGroups.length > 0;
 
   function handleRefresh() {
     startRefresh(async () => {
@@ -235,6 +238,60 @@ function ServerCard({
         {!status.online && status.message ? (
           <p className="text-sm text-muted-foreground">{status.message}</p>
         ) : null}
+
+        <div className="rounded-lg border border-border/70 bg-background/40">
+          <button
+            type="button"
+            className="flex w-full items-center justify-between gap-3 px-3 py-2 text-left text-sm"
+            onClick={() => setPlayersOpen((current) => !current)}
+          >
+            <span className="flex items-center gap-2 font-medium">
+              <UsersIcon className="size-4" />
+              Current players
+            </span>
+            <ChevronDownIcon
+              className={cn("size-4 transition-transform duration-300", playersOpen && "rotate-180")}
+            />
+          </button>
+          <div
+            className={cn(
+              "grid transition-[grid-template-rows,opacity] duration-300 ease-out",
+              playersOpen ? "grid-rows-[1fr] opacity-100" : "grid-rows-[0fr] opacity-0",
+            )}
+          >
+            <div className="min-h-0 overflow-hidden">
+              <div className="grid gap-3 border-t border-border/70 p-3 sm:grid-cols-2 lg:grid-cols-3">
+                {hasPlayerGroups ? (
+                  status.playerGroups.map((group) => (
+                    <div key={group.assignment} className="rounded-lg bg-muted/35 p-3">
+                      <p className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">
+                        {group.assignment}
+                      </p>
+                      <div className="mt-2 space-y-1">
+                        {group.players.map((player) => (
+                          <div key={`${group.assignment}:${player.name}`} className="text-sm">
+                            <p className="font-medium">{player.name}</p>
+                            {player.matchedName && player.matchedName !== player.name ? (
+                              <p className="text-xs text-muted-foreground">
+                                Matched: {player.matchedName}
+                              </p>
+                            ) : null}
+                          </div>
+                        ))}
+                      </div>
+                    </div>
+                  ))
+                ) : (
+                  <p className="text-sm text-muted-foreground">
+                    {status.online
+                      ? "No player names returned by the server."
+                      : "Player list unavailable while the server is offline."}
+                  </p>
+                )}
+              </div>
+            </div>
+          </div>
+        </div>
 
         <div className="flex items-center justify-between gap-3">
           <p className="text-xs text-muted-foreground">Checked {checkedAtLabel(status.checkedAt)}</p>

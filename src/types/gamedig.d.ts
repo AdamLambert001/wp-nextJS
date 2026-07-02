@@ -15,6 +15,9 @@ declare module "gamedig" {
     map?: string;
     numplayers?: number;
     maxplayers?: number;
+    players?: Array<{
+      name?: string;
+    }>;
     ping?: number;
     connect?: string;
     queryPort?: number;

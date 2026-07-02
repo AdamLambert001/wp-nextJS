@@ -1,4 +1,5 @@
 import { prisma } from "@/lib/prisma";
+import { loadOrbatPlayerAssignments } from "@/lib/servers/orbat-player-match";
 import { queryServerStatus } from "@/lib/servers/status";
 import type { PublicGameServer, ServerCardData } from "@/lib/servers/types";
 
@@ -27,7 +28,10 @@ export async function loadPublicGameServers(): Promise<PublicGameServer[]> {
 
 export async function loadServerCards(): Promise<ServerCardData[]> {
   const servers = await loadPublicGameServers();
-  const statuses = await Promise.all(servers.map((server) => queryServerStatus(server)));
+  const assignments = await loadOrbatPlayerAssignments();
+  const statuses = await Promise.all(
+    servers.map((server) => queryServerStatus(server, assignments)),
+  );
 
   return servers.map((server, index) => ({
     ...server,
